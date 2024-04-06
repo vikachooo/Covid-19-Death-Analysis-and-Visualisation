@@ -1,0 +1,306 @@
+---
+title: "COVID-19 Deaths Analysis (2021)"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+### Introduction
+
+The COVID-19 pandemic's mortality patterns offer essential insights into public health risks and response efficacy. This project leverages 2021 data from Worldometer to analyze death rates worldwide and examines US medical data to identify prevalent health conditions that intensify the risk of fatal outcomes.
+
+### World
+
+**Top 20 countries by COVID-19 cases and deaths**
+
+The bar charts showing the top 20 countries by COVID-19 cases and deaths reveal that the USA, India, and Brazil experience the heaviest burden in both measures, yet the figures are not normalised for population sizes. 
+
+```{r setup, warning=FALSE, message=FALSE, echo=FALSE}
+library(tidyverse)
+library(ggplot2)
+#wordcloud
+library(wordcloud)
+library(tm)
+library(slam)
+library(wordcloud)
+library(RColorBrewer)
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results='hide'}
+
+#======COVID======
+covid <- read.csv("/Users/viktoriazajceva/Desktop/R/Covid-19 Death Medical Analysis & Visualization using Plotly/covid_worldometer_data.csv")
+
+colnames(covid)
+
+# нужно убрать сепаратор ,
+covid$TotalCases <- as.numeric(gsub(",","", covid$TotalCases))
+covid$TotalDeaths <- as.numeric(gsub(",","", covid$TotalDeaths))
+# остальные столбцы сразу изменю
+covid <- covid %>%
+  mutate_at(c("Total.Recovered", "Active.cases", "Totalcases.1M", "TotalDeath.1M"), ~as.numeric(gsub(",", "", .)))
+
+top_countries <- covid %>% 
+  top_n(20, TotalCases)
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(plotly)
+##### graphs ##### 
+# TotalCases
+
+fig1 <- plot_ly(data = top_countries, x = ~Country, y = ~TotalCases, type = "bar",
+                color = ~Country) %>%
+  layout(xaxis = list(categoryorder = "total descending", title = "Country"),
+         yaxis = list(title = "Number of cases"),
+         title = "Top 20 countries by COVID-19 cases")
+
+fig1
+
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+fig2 <- plot_ly(data = top_countries, x = ~Country, y = ~TotalDeaths, type = "bar",
+                color = ~Country) %>% 
+  layout(xaxis = list(categoryorder = "total descending", title = "Country"),
+         yaxis = list(title = "Number of deaths"),
+         title = "Top 20 countries by COVID-19 deaths")
+fig2
+```
+
+When observed closely, Turkey's high case count does not correspond with its position in the mortality chart, potentially indicating effective medical interventions or demographic factors that reduce fatality rates. On the other hand, Mexico's mortality ranking is disproportionately high compared to its case count, which could imply issues such as healthcare resource limitations or differences in reporting standards. 
+
+These disparities underscore the necessity of considering per capita metrics for a more accurate understanding of the pandemic's impact.
+
+**Normalised Data Analysis of COVID-19 Case and Mortality Rates**
+
+The scatter plot compares the number of COVID-19 cases per 1 million people against the number of deaths per 1 million people for all countries.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+fig3 <- plot_ly(data = covid, x = ~Totalcases.1M, y = ~TotalDeath.1M, type = "scatter", 
+                mode = "markers",
+                color = ~Country) %>% layout(title = list(text = "Scatter Plot of Total Cases vs Total Deaths (per 1M)"),
+                                             xaxis = list(title = "Total Cases (per 1M)"),
+                                             yaxis = list(title = "Total Deaths (per 1M"))
+fig3
+```
+
+The dense clustering of dots towards the lower end of both axes suggests that a majority of the countries have lower rates of cases and deaths per million, while a few outliers have significantly higher rates, indicating severe outbreaks.
+
+The higher death rates with lower case counts in countries like Mexico, Italy, and Bosnia may point to limited healthcare resources, older population or a higher prevalence of comorbidities that exacerbate COVID-19. Conversely, the lower death rates despite high case counts in Qatar and Bahrain could indicate a younger population, systematic mass testing revealing a broader range of mild or asymptomatic cases or the opposite - deaths misdiagnosis due to the lack of testing or challenges in attributing deaths to COVID-19 versus other comorbid conditions.
+
+Countries like San Marino and Andorra stand out with high numbers in both cases and deaths per million, which might reflect the impact of the pandemic on small states where absolute numbers can be misleading due to their small populations. This could also be influenced by their high population density or frequent cross-border interaction with neighboring countries.
+
+Understanding these nuances is essential for forming an accurate picture of the pandemic's impact and underlines the need for targeted public health interventions tailored to the specific needs and circumstances of each country. 
+
+**World Maps**
+
+To enhance the visual comparison of COVID-19 deaths per 1 million people across different countries, the data have been represented in the form of world maps.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+##### maps ##### 
+# mistakes
+covid[5,9] <- "GBR" 
+covid[155,9] <- "NER"
+covid[107,9] <- "CIV"
+covid[151,9] <- "CAF"
+covid[110,9] <- "COD"
+covid[44,9] <- "ARE"
+covid[204,9] <- "LAO"
+
+
+globe <- plot_ly(
+  data = covid,
+  type = "choropleth",
+  locations = ~iso_alpha, # ISO-3 code
+  z = ~TotalDeath.1M,
+  text = ~paste("Country: ", Country, "<br>Total Deaths (per 1M): ", TotalDeath.1M),
+  colorbar = list(title = "Total Deaths (per 1M)"),
+  showlegend = FALSE
+) %>%
+  layout(
+    geo = list(
+      showland = TRUE,
+      showcountries = TRUE,
+      showocean = FALSE,
+      projection = list(type = "orthographic")
+    )
+  )
+
+globe
+
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+map <- plot_ly(
+  data = covid,
+  type = "choropleth",
+  locations = ~iso_alpha,
+  z = ~TotalDeath.1M,
+  text = ~paste("Country: ", Country, "<br>Total Deaths (per 1M): ", TotalDeath.1M),
+  colorbar = list(title = "Total Deaths (per 1M)"),
+  colors = "plasma",
+  showlegend = FALSE
+) %>%
+  layout(
+    geo = list(
+      showland = TRUE,
+      showcountries = TRUE,
+      showocean = FALSE,
+      projection = list(type = "equirectangular")
+    )
+  )
+map
+
+```
+
+### US
+**Conditions associated with COVID-19 deaths**
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results='hide'}
+#====MEDICAL DATA====
+
+us_medical <- read.csv("/Users/viktoriazajceva/Desktop/R/Covid-19 Death Medical Analysis & Visualization using Plotly/US_medical_data.csv")
+
+us_medical %>% group_by(Condition.Group) %>% summarise(N=n(),
+                                                       'deaths' = sum(COVID.19.Deaths,
+                                                                      na.rm = TRUE))
+```
+
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+# Condition group - age group, no log scale
+
+fig6 <- plot_ly(data = subset(us_medical, State == "US"), type = 'bar', x = ~Age.Group, y = ~COVID.19.Deaths, 
+                color = ~Condition.Group) %>%
+  layout(
+    barmode = 'stack',
+    hoverinfo = 'text',
+    text = ~paste("Condition: ", Condition.Group, "<br>COVID.19.Deaths: ", COVID.19.Deaths),
+    yaxis = list(title = "COVID-19 deaths"),
+    xaxis = list(title = "Age Groups"),
+    title = list(text = "Condition groups associated with COVID-19 deaths by age in the US")
+  )
+
+fig6
+```
+
+The chart reflects a clear trend of increasing COVID-19 deaths with advancing age, a pattern that aligns with the broader understanding of the virus's impact. The prominence of respiratory and circulatory diseases as significant comorbid conditions associated with COVID-19 deaths in the chart underscores the heightened vulnerability of individuals with such underlying health issues. The presence of COVID-19 as its own category among these conditions also suggests that while comorbidities play a substantial role, the virus itself is a major direct cause of mortality across different age groups, particularly in the elderly population.
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+# stacked column chart with a logarithmic y-axis
+# Condition - age group
+fig5 <- plot_ly(data = us_medical, type = 'bar', x = ~Age.Group, y = ~COVID.19.Deaths, 
+               color = ~Condition) %>%
+  layout(
+    barmode = 'stack',
+    yaxis = list(type = 'log', title = "COVID-19 deaths"),
+    xaxis = list(title = "Age Groups"),
+    title = list(text = "Conditions associated with COVID-19 deaths by age in the US"),
+    hoverinfo = 'text',
+    text = ~paste("Condition: ", Condition, "<br>COVID.19.Deaths: ", COVID.19.Deaths)
+  )
+
+fig5
+```
+
+The data indicates that Adult Respiratory Distress Syndrome (ARDS) is the most significant condition contributing to COVID-19 related deaths across all age groups. This finding is consistent with our understanding of COVID-19 as primarily a respiratory illness that can severely affect lung function. For the younger demographics, COVID-19 itself stands out as the second leading associated condition, emphasizing the direct lethality of the virus in the absence of other significant health issues.
+
+In older age brackets, Alzheimer's disease becomes a notable comorbid condition, reflecting the increased mortality risk when COVID-19 affects individuals with this form of dementia. The virus's impact on those with Alzheimer's could be due to a combination of the disease's progression, which can make management of COVID-19 more challenging, and the increased vulnerability of this population to respiratory conditions. These observations point to the complex interplay between age, pre-existing health conditions, and the risk of death from COVID-19.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+# 
+
+fig7 <- plot_ly(
+  data = subset(us_medical, State == "US" & Age.Group == "All Ages"), 
+  type = 'bar',
+  x = ~Condition.Group,
+  y = ~COVID.19.Deaths,
+  color = ~COVID.19.Deaths,
+  customdata = ~Condition, #This line sets the customdata attribute for each bar in the plot. ~Condition is a formula notation that represents the values in the Condition column of the dataset. The customdata attribute allows you to associate additional data with each data point (bar, in this case).
+  hovertemplate = paste("Condition: %{customdata}<br>COVID.19.Deaths: %{y}"), #This line defines the text that appears when you hover over a bar. The hovertemplate attribute is a string that may contain placeholders (such as %{customdata} and %{y}) that get replaced with actual data values during rendering.
+  barmode = 'stack'
+) %>%
+  layout(
+    hovermode = "closest", #"closest" means that the data point closest to the cursor will be highlighted.
+    title = list(text = "Conditions associated with COVID-19 deaths in the US"),
+    axis = list(title = ""),
+    yaxis = list(title = "COVID-19 deaths")
+  )
+
+fig7
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results='hide'}
+#====Text Visualisation====
+
+#step 1 - convert the columns with conditions and condition groups into list
+#step 2 - convert the list into one single string
+#step 3 - convert the string into WordCloud
+
+
+list2 <- as.list(subset(us_medical, State == "US" & Age.Group == "All Ages") %>% select(Condition))
+
+string2 <- paste(list2, collapse = "")
+
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+wordcloud(words = string2, scale = c(3, 0.5), min.freq = 1, random.order = FALSE, 
+          colors = brewer.pal(8, "Dark2"), opacity = 0.8, rotateRatio = 0.15, add = TRUE)
+
+text(x = par("usr")[1] + diff(par("usr")[1:2]) / 2,
+     y = par("usr")[4] - 0.05 * diff(par("usr")[3:4]),
+     labels = "Conditions associated with COVID-19 deaths in the US",
+     col = "black",
+     cex = 1.2,
+     font = 1,  # 1 corresponds to regular font (not bold)
+     pos = 1)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, results='hide'}
+# Reset the par settings to default
+par(pin=c(7, 7))
+par(bg = "white")
+```
+
+
+**US states by number of COVID-19 deaths**
+
+Thus, pre-existing respiratory conditions, namely influenza and pneumonia, are recognised as the most prevalent comorbidities in COVID-19-related deaths across all age groups. The data indicates that Texas, California, and Florida have the highest numbers of such deaths, which highlights the need for targeted public health interventions in these states. 
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+# так как Influenza and pneumonia лидирующее condition по числу COVID.19.Deaths, посмотрим на число 
+# Influenza and pneumonia в разных штатах
+
+fig8 <- plot_ly(
+  data = subset(us_medical, Condition == "Influenza and pneumonia" & Age.Group == "All Ages"), 
+  type = 'bar',
+  x = ~State,
+  y = ~COVID.19.Deaths,
+  color = ~State) %>% layout(
+    xaxis = list(categoryorder = "total descending"),
+    yaxis = list(type = 'log', title = "COVID-19 deaths"),
+    title = list(text = "US states by COVID-19 deaths among people<br>diagnosed with influenza and pneumonia", #<br> shift to next line
+      x = 0.5, # Center the title horizontally
+      xanchor = 'center')) # Ensure the center of the title is at x
+
+fig8
+```
+
+### Conclusion
+
+The analysis of COVID-19 mortality patterns offers crucial insights into the pandemic's multifaceted impact on global and national scales. The Worldometer data reveal significant disparities in COVID-19 morbidity and mortality across countries, highlighting the influence of healthcare systems, reporting standards, and demographic factors. Within the U.S., the examination of specific states and underlying conditions, particularly respiratory diseases, underscores the need for targeted interventions to protect the most vulnerable populations.
